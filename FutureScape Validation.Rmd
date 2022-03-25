@@ -1,0 +1,102 @@
+---
+title: "FutureScape Validation"
+author: "Walt DeGrange"
+date: "3/22/2022"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r Library, echo=FALSE}
+
+library(dplyr)
+library(magrittr)
+library(ggplot2)
+library(readr)
+library(formattable)
+library(scales)
+
+```
+
+# Import Data
+
+```{r Import Data, message=FALSE, warning=FALSE, include=FALSE}
+
+BaseDetailedOutput <- read_csv("BaseDetailedOutput.csv")
+CombatDetailedOutput <- read_csv("CombatDetailedOutput.csv")
+CUVGDetailedOutput <- read_csv("CUVGDetailedOutput.csv")
+LogisticsDetailedOutput <- read_csv("LogisticsDetailedOutput.csv")
+StaticCUVGOutput <- read_csv("StaticCUVGOutput.csv")
+
+MissionCountEntries <- read_csv("MissionCountEntries.csv")
+NMCEntries <- read_csv("NMCEntries.csv")
+SupplyVarianceEntries <- read_csv("SupplyVarianceEntries.csv")
+
+```
+
+
+# Model Validations
+
+## Big Tanker Base Resupply
+
+```{r Analysis, echo=FALSE}
+
+LogisticsDetailedOutput %>% group_by(missionProfile) %>% summarise(Count=n(),Mean=mean(comma(fuelQuantityDelivered,0)),Max=max(comma(fuelQuantityDelivered,0)))
+
+LogisticsDetailedOutput %>% group_by(missionProfile) %>% filter(missionProfile=="CommercialFuelShipmentWaterLarge") %>% ggplot(aes(x=timestampMissionEnd/(60*60*24),y=fuelQuantityDelivered)) + geom_line()
+
+LogisticsDetailedOutput %>% group_by(missionProfile) %>% filter(missionProfile=="CommercialFuelShipmentWaterSmall") %>% ggplot(aes(x=timestampMissionEnd/(60*60*24),y=fuelQuantityDelivered)) + geom_line()
+
+LogisticsDetailedOutput %>% group_by(missionProfile) %>% filter(missionProfile=="MilitaryFuelShipmentWaterOPDS") %>% ggplot(aes(x=timestampMissionEnd/(60*60*24),y=fuelQuantityDelivered)) + geom_line()
+
+LogisticsDetailedOutput %>% group_by(missionProfile) %>% summarise(Count=n(),Mean=mean(comma(fuelQuantityDelivered,0)),Max=max(comma(fuelQuantityDelivered,0))) -> MissionType
+
+LogisticsDetailedOutput$baseID <- as.numeric(LogisticsDetailedOutput$baseID)
+
+MissionTypeBlue <- left_join(LogisticsDetailedOutput,BaseDetailedOutput,by="baseID")
+
+MissionTypeBlue %<>% filter(team=="Blue") 
+
+MissionTypeBlue %>% group_by(missionProfile, landLabel) %>% filter(missionProfile=="CommercialFuelShipmentWaterLarge") %>% ggplot(aes(x=timestampMissionEnd/(60*60*24),y=fuelQuantityDelivered)) + geom_line()
+
+MissionTypeBlue %>% group_by(missionProfile, landLabel) %>% summarise(Count=n(),Mean=mean(comma(fuelQuantityDelivered,0)),Max=max(comma(fuelQuantityDelivered,0)))
+
+MissionTypeBlue %>% group_by(missionProfile, landLabel) %>% ggplot(aes(x=timestampMissionEnd/(60*60*24),y=fuelQuantityDelivered, fill=landLabel)) + geom_line() + facet_grid(rows = vars(landLabel), cols = vars(missionProfile))
+
+MissionTypeBlue %>% group_by(missionProfile, landLabel) %>% ggplot(aes(x=timestampMissionEnd/(60*60*24),y=fuelQuantityDelivered, fill=landLabel)) + geom_col() + facet_grid(rows = vars(landLabel), cols = vars(missionProfile))
+
+MissionTypeBlue %>% group_by(missionProfile, landLabel) %>% summarise(Count=n(),Mean=mean(comma((abs(timestampMissionEnd-timestampMissionStart))/(60*60*24)),0))
+
+#MissionTypeBlue %<>% filter(team=="blue") 
+
+#LogisticsDetailedOutput %>% group_by(missionProfile) %>% ggplot(aes(x=timestampMissionEnd/(60*60*24),y=fuelQuantityDelivered, fill=missionProfile))  +
+#  geom_col(position = "dodge")
+
+
+```
+```{r Base Inventory}
+
+BaseDetailedOutput %>% group_by(landLabel) %>% filter(team == "Blue") %>% ggplot(aes(x=day,y=baseInventoryActual,fill=landLabel)) + geom_col(position = "dodge") + scale_y_continuous(labels = comma) + facet_grid(rows = vars(landLabel), cols = vars(baseStatus))
+
+BaseDetailedOutput %>% group_by(landLabel) %>% filter(team == "Blue") %>% summarise(Max = max(baseInventoryActual))
+
+```
+
+```{r Reorder Point Analysis}
+
+MissionTypeBlue %<>% filter(!reorderQuantity=="Unknown" | !reorderPoint=="Unknown") 
+
+MissionTypeBlue$reorderPoint <- as.numeric(MissionTypeBlue$reorderPoint)
+
+MissionTypeBlue$reorderQuantity <- as.numeric(MissionTypeBlue$reorderQuantity)
+
+MissionTypeBlue %>% group_by(missionProfile, landLabel) %>% summarise(ReorderPoint = max(reorderPoint), ReorderQuantity = max(reorderQuantity), PercentRQ_ROP = ReorderQuantity/ReorderPoint)
+
+MissionTypeBlue %>% group_by(missionProfile, landLabel, baseID) %>% filter(baseID==1366) %>% summarise(ReorderPoint = max(reorderPoint), ReorderQuantity = max(reorderQuantity), PercentRQ_ROP = ReorderQuantity/ReorderPoint)
+
+
+
+```
+
